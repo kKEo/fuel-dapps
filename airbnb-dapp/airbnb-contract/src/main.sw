@@ -6,6 +6,30 @@ mod events;
 mod interface;
 
 
+use ::data_structures::{
+    property::Property,
+    property_info::PropertyInfo,
+    booking_state::BookingState,
+    booking_info::BookingInfo,
+    property_state::PropertyState,
+    property_image::PropertyImage,
+    booking::Booking,
+};
+
+
+use ::errors::{BookingError, CreationError, UserError};
+use ::events::{PropertyListed, PropertyUnlisted, BookingSuccessful};
+
+
+use std::{
+    auth::msg_sender,
+    block::height,
+    context::msg_amount,
+    hash::Hash,
+};
+use ::interface::{HotelBooking, Info};
+
+
 
 // Our storage section establishes the foundation for preserving essential data on the blockchain. 
 // We employ StorageMap structures to efficiently manage booking history, property availability, property information, property images, booking information, and counters for total properties and bookings.
@@ -57,6 +81,7 @@ fn list_property(pincode: u64, image1: b256, image2: b256) {
     });
 }
 
+#[storage(read, write)]
 fn unlist_property(property_id: u64) {
     // Retrieve the property in order to check its data / update it
     let mut property_info = storage.property_info.get(property_id).try_read().unwrap();
