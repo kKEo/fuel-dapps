@@ -4,13 +4,13 @@
 /* eslint-disable */
 
 /*
-  Fuels version: 0.65.0
-  Forc version: 0.46.1
-  Fuel-Core version: 0.20.8
+  Fuels version: 0.60.0
+  Forc version: 0.44.0
+  Fuel-Core version: 0.20.5
 */
 
 import { Interface, Contract, ContractFactory } from "fuels";
-import type { Provider, Account, AbstractAddress, BytesLike, DeployContractOptions, StorageSlot } from "fuels";
+import type { Provider, Account, AbstractAddress, BytesLike, DeployContractOptions } from "fuels";
 import type { AirbnbContractAbi, AirbnbContractAbiInterface } from "../AirbnbContractAbi";
 
 const _abi = {
@@ -620,49 +620,26 @@ const _abi = {
   ],
   "messagesTypes": [],
   "configurables": []
-};
-
-const _storageSlots: StorageSlot[] = [
-  {
-    "key": "7f91d1a929dce734e7f930bbb279ccfccdb5474227502ea8845815c74bd930a7",
-    "value": "0000000000000000000000000000000000000000000000000000000000000000"
-  },
-  {
-    "key": "94b2b70d20da552763c7614981b2a4d984380d7ed4e54c01b28c914e79e44bd5",
-    "value": "0000000000000000000000000000000000000000000000000000000000000000"
-  }
-];
+}
 
 export class AirbnbContractAbi__factory {
-  static readonly abi = _abi;
-
-  static readonly storageSlots = _storageSlots;
-
+  static readonly abi = _abi
   static createInterface(): AirbnbContractAbiInterface {
     return new Interface(_abi) as unknown as AirbnbContractAbiInterface
   }
-
   static connect(
     id: string | AbstractAddress,
     accountOrProvider: Account | Provider
   ): AirbnbContractAbi {
     return new Contract(id, _abi, accountOrProvider) as unknown as AirbnbContractAbi
   }
-
   static async deployContract(
     bytecode: BytesLike,
     wallet: Account,
     options: DeployContractOptions = {}
   ): Promise<AirbnbContractAbi> {
     const factory = new ContractFactory(bytecode, _abi, wallet);
-
-    const { storageSlots } = AirbnbContractAbi__factory;
-
-    const contract = await factory.deployContract({
-      storageSlots,
-      ...options,
-    });
-
+    const contract = await factory.deployContract(options);
     return contract as unknown as AirbnbContractAbi;
   }
 }

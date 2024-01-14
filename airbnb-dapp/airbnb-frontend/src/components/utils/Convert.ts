@@ -1,7 +1,9 @@
 import bs58 from 'bs58';
 import { BN, Provider, fromTai64ToUnix } from 'fuels';
+import { Buffer } from 'buffer';
 
 export function base58ToHex(base58String: string): string {
+    console.log("Input: ", base58String);
     const bytes = bs58.decode(base58String);
     return Buffer.from(bytes).toString('hex');
 }
