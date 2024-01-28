@@ -1,0 +1,2 @@
+
+export const PainterContractID = "0xb09ddbbcd96f6ff24c800ef52327b50ddb7395405a54873358e129e2e7af583e"
