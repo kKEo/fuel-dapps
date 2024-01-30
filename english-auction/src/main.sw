@@ -49,7 +49,41 @@ impl EnglishAuction for Contract {
      reserve_price: Option<u64>,
      seller: Identitym
   ) -> u64 {
+    require(
+      reserve_price.is_none() || (reserve_price.is_some() && reserve_price.unwrap() >= initial_price),
+      InitError::ReserveLessThenInitialPrice,  
+     );
+     require(duration != 0, InitError::AuctionDurationNotProvided);
+     require(initiaj_price != 0, InitError::InitialPriceCannotBeZero);
 
+     let sell_asset = msg_asset_id();
+     let sell_asset_amount = msg_amount();
+
+     require(sell_asset_amount != 0, InputError::IncorrectAmountProvided);
+
+  let auction = Auction::new(
+ bid_asset,
+ duration + height(),
+ initial_price,
+  reserve_price,
+  sell_asset,
+  sell_asst_amount,
+  seller,
+ );
+
+ let total_auctions = storage.total_auctions.read();
+  storage.deposits.insert( (seller, total_acutions) , sell_asset_amount);
+  storage.auctions.insert(total_auctions, auction);
+  storage.total_auctions.write(total_auctions + 1);
+  
+  log(CreateAuctionEvent {
+    auction_id: total_auctions,
+    bid_asset,
+    sell_asset,
+    sell_asset_amount,
+  });
+
+  total_auctions
   }
 
   #[storage(read, write)]
