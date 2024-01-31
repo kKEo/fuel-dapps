@@ -30,29 +30,120 @@ storage {
 impl EnglishAuction for Contract {
     #[payable]
     #[storage(read, write)]
-    fn bid(auction_id: u64) {}
+    fn bid(auction_id: u64) {
+        let auction = storage.auctions.get(auction_id).try_read();
+        require(auction.is_some(), InputError::AuctionDoesNotExist);
+
+        let mut auction = auction.unwrap();
+        let sender = msg_sender().unwrap();
+        let bid_asset = msg_asset_id();
+        let bid_amount = msg_amount();
+        require(sender != auction.seller, UserError::BidderIsSeller);
+        require(
+            auction
+                .state == State::Open && auction
+                .end_block >= height(),
+            AccessError::AuctionIsNotOpen,
+        );
+        require(
+            bid_asset == auction
+                .bid_asset,
+            InputError::IncorrectAssetProvided,
+        );
+
+// Update user's deposit
+       let total_bid = match storage.deposits.get((sender, auction_id)).try_read() {
+            Some(sender_deposit) => {
+                bid_amount + sender_deposit
+            },
+            None => {
+                bid_amount
+            }
+        };
+
+        require(
+            total_bid >= auction
+                .initial_price,
+            InputError::InitialPriceNotMet,
+        );
+        require(
+            total_bid > auction
+                .highest_bid,
+            InputError::IncorrectAmountProvided,
+        );
+
+
+
+        if auction.reserve_price.is_some() {
+            let reserve_price = auction.reserve_price.unwrap();
+            require(
+                reserve_price >= total_bid,
+                InputError::IncorrectAmountProvided,
+            );
+
+            if reserve_price == total_bid {
+                auction.state = State::Closed;
+            }
+        }
+
+        auction.highest_bidder = Option::Some(sender);
+        auction.highest_bid = total_bid;
+        storage.deposits.insert((sender, auction_id), total_bid);
+        storage.auctions.insert(auction_id, auction);
+
+        log(BidEvent {
+            amount: auction.highest_bid,
+            auction_id: auction_id,
+            user: sender,
+        });
+    }
 
     #[storage(read, write)]
-    fn cancel(auction_id: u64) {}
+    fn cancel(auction_id: u64) {
+        let auction = storage.auctions.get(auction_id).try_read();
+
+        require(auction.is_some(), InputError::AuctionDoesNotExist);
+
+        let mut auction = auction.unwrap();
+        require(
+            auction
+                .state == State::Open && auction
+                .end_block >= height(),
+            AccessError::AuctionIsNotOpen,
+        );
+
+        require(
+            msg_sender()
+                .unwrap() == auction
+                .seller,
+            AccessError::SenderIsNotSeller,
+        );
+
+        auction.highest_bidder = Option::None;
+        auction.state = State::Closed;
+        storage.auctions.insert(auction_id, auction);
+
+        log(CancelAuctionEvent { auction_id });
+    }
 
     #[payable]
     #[storage(read, write)]
     fn create(
-        bid_asset: u32,
+        bid_asset: AssetId,
         duration: u32,
         initial_price: u64,
         reserve_price: Option<u64>,
-        seller: Identitym,
+        seller: Identity,
     ) -> u64 {
         require(
             reserve_price
                 .is_none() || (reserve_price
                     .is_some() && reserve_price
                     .unwrap() >= initial_price),
-            InitError::ReserveLessThenInitialPrice,
+            InitError::ReserveLessThanInitialPrice,
         );
         require(duration != 0, InitError::AuctionDurationNotProvided);
-        require(initiaj_price != 0, InitError::InitialPriceCannotBeZero);
+        require(initial_price != 0, InitError::InitialPriceCannotBeZero);
 
         let sell_asset = msg_asset_id();
         let sell_asset_amount = msg_amount();
@@ -65,14 +156,14 @@ impl EnglishAuction for Contract {
             initial_price,
             reserve_price,
             sell_asset,
-            sell_asst_amount,
+            sell_asset_amount,
             seller,
         );
 
         let total_auctions = storage.total_auctions.read();
         storage
             .deposits
-            .insert((seller, total_acutions), sell_asset_amount);
+            .insert((seller, total_auctions), sell_asset_amount);
         storage.auctions.insert(total_auctions, auction);
         storage.total_auctions.write(total_auctions + 1);
 
@@ -87,7 +178,54 @@ impl EnglishAuction for Contract {
     }
 
     #[storage(read, write)]
-    fn withdraw(auction_id: u64) {}
+    fn withdraw(auction_id: u64) {
+        let auction = storage.auctions.get(auction_id).try_read();
+        require(auction.is_some(), InputError::AuctionDoesNotExist);
+
+        let mut auction = auction.unwrap();
+        require(
+            auction
+                .state == State::Closed || auction
+                .end_block <= height(),
+            AccessError::AuctionIsNotClosed,
+        );
+
+        if (auction.end_block <= height()
+            && auction.state == State::Open)
+        {
+            auction.state = State::Closed;
+            storage.auctions.insert(auction_id, auction);
+        }
+
+        let sender = msg_sender().unwrap();
+        let bidder = auction.highest_bidder;
+        let sender_deposit = storage.deposits.get((sender, auction_id)).try_read();
+
+        require(sender_deposit.is_some(), UserError::UserHasAlreadyWithdrawn);
+        assert(storage.deposits.remove((sender, auction_id)));
+        let mut withdrawn_amount = sender_deposit.unwrap();
+        let mut withdrawn_asset = auction.bid_asset;
+
+        if ((bidder.is_some() && sender == bidder.unwrap()) || (bidder.is_none() && sender == auction.seller)) {
+            transfer(sender, auction.sell_asset, auction.sell_asset_amount);
+            withdrawn_asset = auction.sell_asset;
+            withdrawn_amount = auction.sell_asset_amount;
+        } else if (sender == auction.seller) {
+            // Seller withdraws winning bids
+            transfer(sender, auction.bid_asset, auction.highest_bid);
+            withdrawn_amount = auction.highest_bid;
+        } else {
+            // Bidders withdraw failed bids
+            transfer(sender, withdrawn_asset, withdrawn_amount);
+        };
+
+        log(WithdrawEvent {
+            asset: withdrawn_asset,
+            asset_amount: withdrawn_amount,
+            auction_id,
+            user: sender,
+        });
+    }
 }
 
 impl Info for Contract {
@@ -98,7 +236,7 @@ impl Info for Contract {
 
     #[storage(read)]
     fn deposit_balance(auction_id: u64, identity: Identity) -> Option<u64> {
-        storage.deposits.get((itentity, auction_id)).try_read()
+        storage.deposits.get((identity, auction_id)).try_read()
     }
 
     #[storage(read)]

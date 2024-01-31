@@ -13,11 +13,11 @@ abi EnglishAuction {
     #[payable]
     #[storage(read, write)]
     fn create(
-        bid_asset: u32,
+        bid_asset: AssetId,
         duration: u32,
         initial_price: u64,
         reserve_price: Option<u64>,
-        seller: Identitym,
+        seller: Identity,
     ) -> u64;
 
     #[storage(read, write)]
